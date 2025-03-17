@@ -33,7 +33,7 @@ export default class FolderRulesPlugin extends Plugin {
 		await this.loadSettings();
 
 		// Add a ribbon icon for toggling the plugin
-		const ribbonIconEl = this.addRibbonIcon('folder', 'Folder Rules', (evt: MouseEvent) => {
+		const ribbonIconEl = this.addRibbonIcon('folder-plus', 'Folder Rules', (evt: MouseEvent) => {
 			// Toggle the plugin
 			this.settings.enabled = !this.settings.enabled;
 			this.saveSettings();
@@ -62,6 +62,12 @@ export default class FolderRulesPlugin extends Plugin {
 		
 		if (!metadata) return;
 
+		if (this.settings.debug) {
+			console.group(`Processing metadata change for: ${filePath}`);
+			console.log('Current metadata:', metadata.frontmatter);
+			console.log('Previous metadata:', oldMetadata);
+		}
+
 		// Store current metadata for future comparison
 		this.lastMetadataCache[filePath] = metadata.frontmatter || {};
 
@@ -70,9 +76,33 @@ export default class FolderRulesPlugin extends Plugin {
 			filePath.startsWith(rule.sourceFolder)
 		);
 
+		if (this.settings.debug) {
+			console.log(`Found ${matchingRules.length} potential rules for source folder`);
+			matchingRules.forEach((rule, index) => {
+				console.log(`Rule ${index + 1}:`, {
+					sourceFolder: rule.sourceFolder,
+					destinationFolder: rule.destinationFolder,
+					conditions: rule.conditions
+				});
+			});
+		}
+
 		for (const rule of matchingRules) {
+			if (this.settings.debug) {
+				console.group(`Evaluating rule: ${rule.sourceFolder} → ${rule.destinationFolder}`);
+			}
+
 			const matchesNow = await this.checkRuleConditions(rule, metadata);
 			const matchedBefore = oldMetadata && await this.checkRuleConditions(rule, { frontmatter: oldMetadata });
+
+			if (this.settings.debug) {
+				console.log('Rule evaluation results:', {
+					matchesNow,
+					matchedBefore,
+					willMove: matchesNow && !matchedBefore
+				});
+				console.groupEnd();
+			}
 
 			// Only move if the file newly matches the conditions
 			if (matchesNow && !matchedBefore) {
@@ -80,34 +110,65 @@ export default class FolderRulesPlugin extends Plugin {
 				break; // Stop after first matching rule
 			}
 		}
+
+		if (this.settings.debug) {
+			console.groupEnd();
+		}
 	}
 
 	async checkRuleConditions(rule: FolderRule, metadata: CachedMetadata): Promise<boolean> {
-		if (!metadata.frontmatter) return false;
+		if (!metadata.frontmatter) {
+			if (this.settings.debug) {
+				console.log('No frontmatter found in metadata');
+			}
+			return false;
+		}
 
 		for (const condition of rule.conditions) {
 			const value = this.getMetadataValue(metadata, condition.field);
-			if (!value) return false;
+			
+			if (this.settings.debug) {
+				console.log(`Checking condition:`, {
+					field: condition.field,
+					operator: condition.operator,
+					expectedValue: condition.value,
+					actualValue: value
+				});
+			}
 
+			if (!value) {
+				if (this.settings.debug) {
+					console.log(`Field "${condition.field}" not found in metadata`);
+				}
+				return false;
+			}
+
+			let matches = false;
 			switch (condition.operator) {
 				case 'equals':
-					if (value !== condition.value) return false;
+					matches = value === condition.value;
 					break;
 				case 'contains':
-					if (!value.includes(condition.value)) return false;
+					matches = value.includes(condition.value);
 					break;
 				case 'regex':
 					try {
 						const regex = new RegExp(condition.value);
-						if (!regex.test(value)) return false;
+						matches = regex.test(value);
 					} catch (e) {
 						if (this.settings.debug) {
-							console.error('Invalid regex:', condition.value);
+							console.error('Invalid regex:', condition.value, e);
 						}
 						return false;
 					}
 					break;
 			}
+
+			if (this.settings.debug) {
+				console.log(`Condition result: ${matches ? 'matched' : 'did not match'}`);
+			}
+
+			if (!matches) return false;
 		}
 		return true;
 	}
@@ -120,9 +181,15 @@ export default class FolderRulesPlugin extends Plugin {
 	async moveFile(file: TFile, destinationFolder: string) {
 		try {
 			const newPath = `${destinationFolder}/${file.name}`;
+			if (this.settings.debug) {
+				console.log(`Attempting to move file:`, {
+					from: file.path,
+					to: newPath
+				});
+			}
 			await this.app.fileManager.renameFile(file, newPath);
 			if (this.settings.debug) {
-				console.log(`Moved ${file.path} to ${newPath}`);
+				console.log(`Successfully moved ${file.path} to ${newPath}`);
 			}
 		} catch (e) {
 			if (this.settings.debug) {
@@ -205,7 +272,7 @@ class FolderRulesSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName('Debug Mode')
-			.setDesc('Enable debug logging')
+			.setDesc('Enable detailed logging in the Developer Console (View > Toggle Developer Tools > Console)')
 			.addToggle(toggle => toggle
 				.setValue(this.plugin.settings.debug)
 				.onChange(async (value) => {
