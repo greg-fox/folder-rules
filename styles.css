@@ -6,3 +6,55 @@ available in the app when your plugin is enabled.
 If your plugin does not need CSS, delete this file.
 
 */
+
+.folder-rule-container {
+    border: 1px solid var(--background-modifier-border);
+    margin: 1em 0;
+    padding: 1em;
+    border-radius: 4px;
+}
+
+.folder-rule-container .setting-item {
+    border: none;
+    padding: 0.5em 0;
+}
+
+.condition-container {
+    margin-left: 2em;
+    padding: 0.5em;
+    border-left: 2px solid var(--background-modifier-border);
+}
+
+.condition-container .setting-item {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+}
+
+.condition-container .setting-item-control {
+    flex: 1;
+    display: flex;
+    gap: 8px;
+}
+
+.condition-container .setting-item-control input {
+    flex: 1;
+}
+
+.condition-container .setting-item-control select {
+    min-width: 100px;
+}
+
+.folder-browse-button {
+    background-color: var(--interactive-normal);
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 4px;
+    padding: 4px 8px;
+    cursor: pointer;
+    font-size: 14px;
+}
+
+.folder-browse-button:hover {
+    background-color: var(--interactive-hover);
+}
