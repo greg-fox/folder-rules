@@ -11,6 +11,7 @@ interface FolderRule {
 		operator: 'equals' | 'contains' | 'regex';
 		value: string;
 	}[];
+	id: string; // Add unique identifier for each rule
 }
 
 interface FolderRulesSettings {
@@ -28,6 +29,7 @@ const DEFAULT_SETTINGS: FolderRulesSettings = {
 export default class FolderRulesPlugin extends Plugin {
 	settings: FolderRulesSettings;
 	lastMetadataCache: { [path: string]: any } = {};
+	appliedRulesCache: { [path: string]: Set<string> } = {}; // Track which rules have been applied to each file
 
 	async onload() {
 		await this.loadSettings();
@@ -71,15 +73,23 @@ export default class FolderRulesPlugin extends Plugin {
 		// Store current metadata for future comparison
 		this.lastMetadataCache[filePath] = metadata.frontmatter || {};
 
+		// Reset applied rules cache if the file has been manually moved
+		if (!this.appliedRulesCache[filePath]) {
+			this.appliedRulesCache[filePath] = new Set();
+		}
+
 		// Find matching rules for the file's current folder
 		const matchingRules = this.settings.rules.filter(rule => 
-			filePath.startsWith(rule.sourceFolder)
+			filePath.startsWith(rule.sourceFolder) &&
+			!this.appliedRulesCache[filePath].has(rule.id) // Only consider rules that haven't been applied yet
 		);
 
 		if (this.settings.debug) {
 			console.log(`Found ${matchingRules.length} potential rules for source folder`);
+			console.log('Previously applied rules:', Array.from(this.appliedRulesCache[filePath]));
 			matchingRules.forEach((rule, index) => {
 				console.log(`Rule ${index + 1}:`, {
+					id: rule.id,
 					sourceFolder: rule.sourceFolder,
 					destinationFolder: rule.destinationFolder,
 					conditions: rule.conditions
@@ -107,6 +117,11 @@ export default class FolderRulesPlugin extends Plugin {
 			// Only move if the file newly matches the conditions
 			if (matchesNow && !matchedBefore) {
 				await this.moveFile(file, rule.destinationFolder);
+				// Mark this rule as applied to this file
+				this.appliedRulesCache[filePath].add(rule.id);
+				if (this.settings.debug) {
+					console.log(`Marked rule ${rule.id} as applied to ${filePath}`);
+				}
 				break; // Stop after first matching rule
 			}
 		}
@@ -188,6 +203,11 @@ export default class FolderRulesPlugin extends Plugin {
 				});
 			}
 			await this.app.fileManager.renameFile(file, newPath);
+			// Update the applied rules cache for the new path
+			if (this.appliedRulesCache[file.path]) {
+				this.appliedRulesCache[newPath] = this.appliedRulesCache[file.path];
+				delete this.appliedRulesCache[file.path];
+			}
 			if (this.settings.debug) {
 				console.log(`Successfully moved ${file.path} to ${newPath}`);
 			}
@@ -283,6 +303,10 @@ class FolderRulesSettingTab extends PluginSettingTab {
 		containerEl.createEl('h2', {text: 'Folder Rules'});
 
 		this.plugin.settings.rules.forEach((rule, index) => {
+			// Ensure each rule has a unique ID
+			if (!rule.id) {
+				rule.id = `rule-${Date.now()}-${index}`;
+			}
 			const ruleContainer = containerEl.createEl('div', {
 				cls: 'folder-rule-container'
 			});
@@ -426,6 +450,7 @@ class FolderRulesSettingTab extends PluginSettingTab {
 				.setButtonText('Add Rule')
 				.onClick(async () => {
 					this.plugin.settings.rules.push({
+						id: `rule-${Date.now()}-${this.plugin.settings.rules.length}`,
 						sourceFolder: '',
 						destinationFolder: '',
 						conditions: []
