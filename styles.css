@@ -58,3 +58,62 @@ If your plugin does not need CSS, delete this file.
 .folder-browse-button:hover {
     background-color: var(--interactive-hover);
 }
+
+/* Delete Rule Button Styles */
+.delete-rule-button {
+    border-top: 1px solid var(--background-modifier-border);
+}
+
+.delete-rule-button .setting-item-control {
+    justify-content: center;
+}
+
+.delete-rule-button button {
+    background-color: var(--background-modifier-error);
+    color: var(--text-on-accent);
+    border: none;
+    padding: 4px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    min-width: 120px;
+}
+
+.delete-rule-button button:hover {
+    background-color: var(--background-modifier-error-hover);
+}
+
+/* Delete Rule Modal Styles */
+.rule-details {
+    margin: 1em 0;
+    padding: 1em;
+    background-color: var(--background-secondary);
+    border-radius: 4px;
+}
+
+.rule-details p {
+    margin: 0.5em 0;
+    color: var(--text-muted);
+}
+
+.modal-button-container {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 1em;
+}
+
+.modal-button-container button {
+    padding: 4px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.modal-button-container button.mod-warning {
+    background-color: var(--background-modifier-error);
+    color: var(--text-on-accent);
+    border: none;
+}
+
+.modal-button-container button.mod-warning:hover {
+    background-color: var(--background-modifier-error-hover);
+}

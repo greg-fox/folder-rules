@@ -268,12 +268,66 @@ class FolderSuggestModal extends SuggestModal<TFolder> {
 	}
 }
 
+class DeleteRuleModal extends Modal {
+	onConfirm: () => void;
+	rule: FolderRule;
+
+	constructor(app: App, rule: FolderRule, onConfirm: () => void) {
+		super(app);
+		this.onConfirm = onConfirm;
+		this.rule = rule;
+	}
+
+	onOpen() {
+		const {contentEl} = this;
+		contentEl.empty();
+
+		contentEl.createEl('h2', {text: 'Delete Rule'});
+		contentEl.createEl('p', {text: 'Are you sure you want to delete this rule?'});
+		
+		const ruleDetails = contentEl.createEl('div', {cls: 'rule-details'});
+		ruleDetails.createEl('p', {text: `Source Folder: ${this.rule.sourceFolder || 'None'}`});
+		ruleDetails.createEl('p', {text: `Destination Folder: ${this.rule.destinationFolder || 'None'}`});
+		ruleDetails.createEl('p', {text: `Conditions: ${this.rule.conditions.length}`});
+
+		// Add confirmation buttons
+		const buttonContainer = contentEl.createEl('div', {cls: 'modal-button-container'});
+		
+		const confirmButton = buttonContainer.createEl('button', {
+			text: 'Delete',
+			cls: 'mod-warning'
+		});
+		confirmButton.onclick = () => {
+			this.onConfirm();
+			this.close();
+		};
+
+		const cancelButton = buttonContainer.createEl('button', {
+			text: 'Cancel'
+		});
+		cancelButton.onclick = () => {
+			this.close();
+		};
+	}
+
+	onClose() {
+		const {contentEl} = this;
+		contentEl.empty();
+	}
+}
+
 class FolderRulesSettingTab extends PluginSettingTab {
 	plugin: FolderRulesPlugin;
 
 	constructor(app: App, plugin: FolderRulesPlugin) {
 		super(app, plugin);
 		this.plugin = plugin;
+	}
+
+	private hasRuleContent(rule: FolderRule): boolean {
+		return rule.sourceFolder !== '' || 
+			   rule.destinationFolder !== '' || 
+			   rule.conditions.length > 0;
 	}
 
 	display(): void {
@@ -383,14 +437,7 @@ class FolderRulesSettingTab extends PluginSettingTab {
 					};
 					
 					return text;
-				})
-				.addButton(button => button
-					.setButtonText('Delete Rule')
-					.onClick(async () => {
-						this.plugin.settings.rules.splice(index, 1);
-						await this.plugin.saveSettings();
-						this.display();
-					}));
+				});
 
 			rule.conditions.forEach((condition, condIndex) => {
 				const condContainer = ruleContainer.createEl('div', {
@@ -423,7 +470,7 @@ class FolderRulesSettingTab extends PluginSettingTab {
 							await this.plugin.saveSettings();
 						}))
 					.addButton(button => button
-						.setButtonText('Delete')
+						.setButtonText('Delete Condition')
 						.onClick(async () => {
 							rule.conditions.splice(condIndex, 1);
 							await this.plugin.saveSettings();
@@ -442,6 +489,27 @@ class FolderRulesSettingTab extends PluginSettingTab {
 						});
 						await this.plugin.saveSettings();
 						this.display();
+					}));
+
+			// Add delete rule button in its own setting
+			new Setting(ruleContainer)
+				.addButton(button => button
+					.setButtonText('Delete Rule')
+					.setClass('delete-rule-button')
+					.onClick(async () => {
+						const rule = this.plugin.settings.rules[index];
+						if (this.hasRuleContent(rule)) {
+							new DeleteRuleModal(this.app, rule, async () => {
+								this.plugin.settings.rules.splice(index, 1);
+								await this.plugin.saveSettings();
+								this.display();
+							}).open();
+						} else {
+							// If rule is empty, delete without confirmation
+							this.plugin.settings.rules.splice(index, 1);
+							await this.plugin.saveSettings();
+							this.display();
+						}
 					}));
 		});
 
